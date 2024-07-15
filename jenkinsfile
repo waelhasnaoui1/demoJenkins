@@ -1,0 +1,47 @@
+pipeline{
+    agent any
+
+    tools{
+        maven "maven"
+    }
+
+    stages{
+        stage("git checkout"){
+            steps{
+                checkout scmGit(branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/waelhasnaoui1/demoJenkins.git']])
+            }
+        }
+        stage("build project"){
+            steps {
+                sh "mvn package -DskipTests"
+            }
+        }
+
+        stage("build docker image"){
+            steps{
+                sh "docker build -t myapp:$BUILD_NUMBER ."
+            }
+        }
+        stage("stop existing container") {
+                    steps {
+                        script {
+                            def containerId = sh(script: "docker ps -q --filter 'name=myapp'", returnStdout: true).trim()
+                            if (containerId) {
+                                echo "Stopping container ID: ${containerId}"
+                                sh "docker stop ${containerId}"
+                                echo "Removing container ID: ${containerId}"
+                                sh "docker rm ${containerId}"
+                            } else {
+                                echo "No existing container found to stop"
+                            }
+                        }
+                    }
+                }
+
+        stage ("run docker image"){
+            steps {
+                sh "docker run -d -p 8090:8090 myapp:$BUILD_NUMBER"
+            }
+        }
+    }
+}
